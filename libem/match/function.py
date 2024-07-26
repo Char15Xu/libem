@@ -154,7 +154,7 @@ async def once(left: str, right: str) -> dict:
         temperature=parameter.temperature(),
         seed=libem.LIBEM_SEED,
     )
-
+    
     libem.debug(f"[match] prompt:\n"
                 f"{pformat(_prompt, sort_dicts=False)}\n"
                 f"[match] model output:\n"

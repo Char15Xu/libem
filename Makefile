@@ -56,6 +56,11 @@ llama:
 	python examples/model/llama.py
 local: llama
 
+# claude model examples
+.PHONY: claude
+claude:
+	python examples/claude.py
+
 # benchmarks
 .PHONY: benchmark analyze plot archive
 benchmark:
