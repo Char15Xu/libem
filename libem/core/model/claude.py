@@ -3,7 +3,8 @@ import json
 import httpx
 import importlib
 import inspect
-
+import asyncio
+from anthropic import AsyncAnthropic
 from anthropic import Anthropic
 
 import libem
@@ -24,7 +25,7 @@ def get_client():
         raise EnvironmentError(f"CLAUDE_API_KEY is not set.")
 
     if not _client:
-        _client = Anthropic(
+        _client = AsyncAnthropic(
             api_key=os.environ["CLAUDE_API_KEY"],
         )
     return _client
@@ -93,7 +94,7 @@ async def async_call(
 
     if not tools:
         try:
-            response = client.messages.create(
+            response = await client.messages.create(
                 messages=messages,
                 system=system_message,
                 model=model,
@@ -129,7 +130,7 @@ async def async_call(
 
         # Call model
         try:
-            response = client.messages.create(
+            response = await client.messages.create(
                 messages=messages,
                 system=system_message,
                 tools=tools,
