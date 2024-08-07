@@ -92,14 +92,17 @@ async def async_call(
             raise libem.ModelTimedoutException(e)
 
         response_message = response.choices[0].message
-
         num_model_calls += 1
         num_input_tokens += response.usage.total_tokens - \
                             response.usage.completion_tokens
         num_output_tokens += response.usage.completion_tokens
     else:
         # Load the tool modules
-        tools = [importlib.import_module(tool) for tool in tools]
+        tools = [
+            importlib.import_module(tool)
+            if isinstance(tool, str) else tool
+            for tool in tools
+        ]
 
         # Get the functions from the tools and
         # prefer async functions if available

@@ -1,23 +1,31 @@
-import math
 import os
 import sys
+import math
 import time
 import json
+import argparse
 import numpy as np
+from itertools import product
 from datetime import datetime
+from typing import Iterable
 
 import libem
 from libem.core import eval
-from libem.core.struct import Prompt
+from libem.core.struct import Rules
 from libem.match.parameter import tools
 from libem.match import digest as match_digest
+from libem.match import prompt as match_prompt
 from libem.optimize import cost as cost_util
 from libem.tune.learn.confidence.calibrate import temperature_scale
+from libem.tune.learn import icl_strategies
+from libem.core.struct import Shots, Shot
 
 import benchmark as bm
 
 
-def benchmark(dataset, args) -> dict:
+def benchmark(train_set: Iterable,
+              test_set: Iterable,
+              args: argparse.Namespace) -> dict:
     start_time = time.time()
 
     if args.quiet:
@@ -37,6 +45,10 @@ def benchmark(dataset, args) -> dict:
         libem.calibrate({
             "libem.match.parameter.model": args.model,
         })
+    if args.temperature:
+        libem.calibrate({
+            "libem.match.parameter.temperature": args.temperature,
+        })
     if args.cot:
         libem.calibrate({
             "libem.match.parameter.cot": True,
@@ -47,18 +59,26 @@ def benchmark(dataset, args) -> dict:
         })
     if args.rules:
         libem.calibrate({
-            "libem.match.prompt.rules": Prompt.Rules(args.rules),
+            "libem.match.prompt.rules": Rules(args.rules),
+        })
+    if args.icl:
+        libem.calibrate({
+            "libem.match.parameter.icl_strategy": icl_strategies[args.icl],
+        })
+    if args.num_shots:
+        libem.calibrate({
+            "libem.match.parameter.num_shots": args.num_shots,
         })
 
     results, stats = {}, {}
 
     # blocking
     if args.block:
-        dataset, stats['block'], results['block'] = run_block(dataset, args)
+        test_set, stats['block'], results['block'] = run_block(test_set, args)
 
     # matching
     if args.match:
-        stats['match'], results['match'] = run_match(dataset, args)
+        stats['match'], results['match'] = run_match(train_set, test_set, args)
 
     stats['total_latency'] = round(time.time() - start_time, 2)
 
@@ -91,11 +111,19 @@ def benchmark(dataset, args) -> dict:
     return report
 
 
-def run_block(dataset, args):
-    total_pairs = len(dataset['left']) * len(dataset['right'])
+def run_block(test_set: Iterable, args: argparse.Namespace):
+    # prepare the blocking dataset
+    # deduplicate left and right descriptions
+    left = [json.loads(i) for i in set(json.dumps(d['left']) for d in test_set)]
+    right = [json.loads(i) for i in set(json.dumps(d['right']) for d in test_set)]
+    true = [{'left': d['left'], 'right': d['right']}
+            for d in test_set if d['label'] == 1]
 
-    print(f"Benchmark: Blocking {total_pairs} potential pairs "
+    max_pairs = len(left) * len(right)
+
+    print(f"Benchmark: Blocking {max_pairs} potential pairs "
           f"from the {args.name} benchmark", end='')
+    
     if args.num_pairs > 0:
         print(f",\nBenchmark: stopping after the first "
               f"{'pair' if args.num_pairs == 1 else f'{args.num_pairs} pairs'} "
@@ -105,23 +133,19 @@ def run_block(dataset, args):
 
     blocked = []
     start_time = time.time()
-    block_iter = libem.block(dataset['left'], dataset['right'])
-    block_next = next(block_iter, None)
-    while block_next:
-        blocked.append(block_next)
+    for pair in libem.block(left, right):
+        blocked.append(pair)
 
         # check num_pairs stop condition
-        if args.num_pairs > 0 and len(blocked) - args.start_index >= args.num_pairs:
+        if 0 < args.num_pairs <= len(blocked):
             break
-
-        block_next = next(block_iter, None)
     total_time = time.time() - start_time
-
+    
     # generate output and stats
     out = []
     tp, fp, fn, num_tn = [], [], [], 0
     for pair in blocked:
-        if pair in dataset['true']:
+        if pair in true:
             tp.append(pair)
             out.append({
                 'left': pair['left'],
@@ -136,11 +160,28 @@ def run_block(dataset, args):
                 'label': 0
             })
 
-    for pair in dataset['true']:
-        if pair not in tp:
-            fn.append(pair)
-
+    # if didn't run through the entire dataset,
+    # go through all pairs to find the fn and total pairs
+    if 0 < args.num_pairs <= len(blocked):
+        total_pairs, i = 0, 0
+        for l, r in product(left, right):
+            total_pairs += 1
+            
+            if l == blocked[i]['left'] and r == blocked[i]['right']:
+                i += 1
+                
+                # stop early if reached end of blocked
+                if i == len(blocked) - 1:
+                    break
+            else:
+                if {'left': l, 'right': r} in true:
+                    fn.append(pair)
+    else:
+        total_pairs = max_pairs
+        fn = [pair for pair in true if pair not in tp]
+    
     num_tn = total_pairs - len(tp) - len(fp) - len(fn)
+    
     if len(tp) == 0:
         precision = 100 if len(fp) == 0 else 0
         recall = 100 if len(fn) == 0 else 0
@@ -162,7 +203,10 @@ def run_block(dataset, args):
             'fn': len(fn)
         }
     }
-
+    
+    stats['percent_blocked'] = round((1 - len(out) / total_pairs) * 100, 1)
+    stats['throughput'] = libem.round(total_pairs / total_time, 2)
+    
     results = {
         'tp': tp,
         'fp': fp,
@@ -170,29 +214,43 @@ def run_block(dataset, args):
         'tn': num_tn
     }
 
-    print()
     print(f"Benchmark: Blocking done in {round(total_time, 2)}s.")
-    if args.num_pairs <= 0 or args.num_pairs > len(out):
+    if not args.quiet:
         print(f"Benchmark: Resulting pairs\t {len(out)}")
-        print(f"Benchmark: Percent blocked\t {round((1 - len(out) / total_pairs) * 100, 2)}")
-    print(f"Benchmark: Precision\t\t {stats['precision']}")
-    print(f"Benchmark: Recall\t\t {stats['recall']}")
-    print(f"Benchmark: F1 score\t\t {stats['f1']}")
+        print(f"Benchmark: Percent blocked\t {stats['percent_blocked']}")
+        print(f"Benchmark: Throughput\t\t {stats['throughput']} pps")
+        print(f"Benchmark: Precision\t\t {stats['precision']}")
+        print(f"Benchmark: Recall\t\t {stats['recall']}")
+        print(f"Benchmark: F1 score\t\t {stats['f1']}")
 
     return out, stats, results
 
 
-def run_match(dataset, args):
+def run_match(train_set, test_set, args):
+    test_set = list(test_set)
+
     if args.num_pairs > 0:
-        num_pairs = min(args.num_pairs, len(dataset) - args.start_index)
+        num_pairs = min(args.num_pairs, len(test_set))
     else:
-        num_pairs = len(dataset) - args.start_index
+        num_pairs = len(test_set)
     num_batches = math.ceil(num_pairs / args.batch_size)
 
     print(f"Benchmark: Matching {num_pairs} "
           f"{'pair' if num_pairs == 1 else 'pairs'} "
           f"{f'in {num_batches} batches ' if args.batch_size > 1 else ''}"
           f"from the {args.name} benchmark.")
+
+    if args.num_shots > 0:
+        shots = Shots([
+            Shot(
+                question=match_prompt.query(left=d['left'], right=d['right']),
+                answer="yes" if d['label'] == 1 else "no"
+            ) for d in train_set
+        ])
+        print(f"Benchmark: Using {args.num_shots} shots with {args.icl} strategy "
+              f"for in-context learning.")
+    else:
+        shots = []
 
     start_time = time.time()
 
@@ -202,15 +260,16 @@ def run_match(dataset, args):
         libem.calibrate({
             "libem.match.parameter.batch_size": args.batch_size,
             "libem.match.parameter.sync": args.sync,
+            "libem.match.prompt.shots": shots,
         })
 
         if args.sync and args.batch_size == 1:
             # iterate and match each pair
-            for i, data in enumerate(dataset[args.start_index:]):
-                if args.num_pairs > 0 and i + 1 > args.num_pairs:
+            for i, data in enumerate(test_set):
+                if 0 < args.num_pairs < i + 1:
                     break
 
-                left, right = str(data['left']), str(data['right'])
+                left, right = data['left'], data['right']
                 label = data['label']
 
                 if not args.quiet:
@@ -243,12 +302,12 @@ def run_match(dataset, args):
         else:
             # prepare datasets
             left, right, labels = [], [], []
-            for i, data in enumerate(dataset[args.start_index:]):
-                if args.num_pairs > 0 and i + 1 > args.num_pairs:
+            for i, data in enumerate(test_set):
+                if 0 < args.num_pairs < i + 1:
                     break
 
-                left.append(str(data['left']))
-                right.append(str(data['right']))
+                left.append(data['left'])
+                right.append(data['right'])
                 labels.append(data['label'])
 
             answers: list[dict] = libem.match(left, right)
@@ -267,7 +326,7 @@ def run_match(dataset, args):
 
         # fill in additional info from the trace
         for span in t.get():
-            if not 'match' in span:
+            if 'match' not in span:
                 continue
 
             match = span['match']
@@ -346,13 +405,13 @@ def run_match(dataset, args):
         }
     }
 
-    print()
     print(f"Benchmark: Matching done in {stats['latency']}s.")
-    print(f"Benchmark: Precision\t {stats['precision']}")
-    print(f"Benchmark: Recall\t {stats['recall']}")
-    print(f"Benchmark: F1 score\t {stats['f1']}")
-    print(f"Benchmark: Throughput\t {stats['throughput']} pps")
-    print(f"Benchmark: Cost \t ${stats['tokens']['cost']}")
+    if not args.quiet:
+        print(f"Benchmark: Precision\t {stats['precision']}")
+        print(f"Benchmark: Recall\t {stats['recall']}")
+        print(f"Benchmark: F1 score\t {stats['f1']}")
+        print(f"Benchmark: Throughput\t {stats['throughput']} pps")
+        print(f"Benchmark: Cost \t ${stats['tokens']['cost']}")
 
     return stats, results
 
@@ -371,8 +430,6 @@ def create_signature(args):
         signature.append(
             str(args.num_pairs if args.num_pairs > 0 else 'all')
         )
-    if args.train:
-        signature.append('train')
     if not args.schema:
         signature.append('no-schema')
     if args.cot:

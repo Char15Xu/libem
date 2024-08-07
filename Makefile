@@ -17,21 +17,35 @@ browse:
 	python examples/tool/browse.py
 chat:
 	python examples/tool/chat.py
+all: match browse chat
+
+# tool output examples
+.PHONY: confidence likelihood
+confidence:
+	python examples/tool/confidence.py
+likelihood:
+	python examples/tool/likelihood.py
+
+# tool examples
+.PHONY: block extract
 block:
 	python examples/block.py
-all: match match-local browse chat
-
-# extract examples
-.PHONY: extract
 extract:
 	python examples/extract.py
 
+# utility examples
+.PHONY: calibrate trace
+calibrate:
+	python examples/tool/calibrate.py
+trace:
+	python examples/tool/trace.py
+
 # tuning examples
-.PHONY: rule shot tune
-rule:
-	python examples/tune/rule_from_mistakes.py
-shot:
-	python examples/tune/similar_shots.py
+.PHONY: rules shots tune
+rules:
+	python examples/tune/rules.py
+shots:
+	python examples/tune/shots.py
 tune: rule
 
 # optimize examples
@@ -47,19 +61,14 @@ async_batch:
 batch: async_batch
 
 # opensource model examples
-.PHONY: mlx_lm llama local
+.PHONY: mlx_lm llama_cpp llama_ex local
 mlx_lm:
 	pip install mlx_lm
-llama.cpp:
+llama_cpp:
 	pip install llama-cpp-python 
-llama:
+llama_ex:
 	python examples/model/llama.py
-local: llama
-
-# claude model examples
-.PHONY: claude
-claude:
-	python examples/claude.py
+local: llama_ex
 
 # benchmarks
 .PHONY: benchmark analyze plot archive
@@ -78,24 +87,38 @@ archive:
 	@zip -r "$$(date +%Y-%m-%d_%H-%M-%S)_benchmarks.zip" $(RESULT_DIRS) \
 	&& rm -rf $(RESULT_DIRS) || true
 
+.PHONY: block-suite batch-suite
+block-suite:
+	python -m benchmark.run -s block
+batch-suite:
+	python -m benchmark.run -s batch
+
 .PHONY: gpt-4o gpt-4o-mini gpt-4 gpt-4-turbo gpt-3.5-turbo
 gpt-4o:
-	python -m benchmark.suite.gpt-4o
+	python -m benchmark.run -s gpt-4o
 gpt-4o-mini:
-	python -m benchmark.suite.gpt-4o-mini
+	python -m benchmark.run -s gpt-4o-mini
 gpt-4:
-	python -m benchmark.suite.gpt-4
+	python -m benchmark.run -s gpt-4
 gpt-4-turbo:
-	python -m benchmark.suite.gpt-4-turbo
+	python -m benchmark.run -s gpt-4-turbo
 gpt-3.5-turbo:
-	python -m benchmark.suite.gpt-35-turbo
+	python -m benchmark.run -s gpt-3.5-turbo
+
+.PHONY: llama3
+llama3:
+	python -m benchmark.run -s llama3
 
 # tests clean
-.PHONY: test clean
+.PHONY: test clean time_pkg_load time_mod_load
 test:
 	pytest -v test/*
 clean:
 	rm -r _logs > /dev/null 2>&1 || true
+time_pkg_load:
+	python script/time_pkg_load.py
+time_mod_load:
+	python script/time_mod_load.py
 
 # refresh price
 .PHONY: price
@@ -112,5 +135,10 @@ data:
 serve:
 	python -m serve.run
 build:
-	docker build -t silveryfu/libem-serve:0.0.17 -f serve/deploy/Dockerfile . && \
-	docker push silveryfu/libem-serve:0.0.17
+	docker build -t silveryfu/libem-serve:0.0.21 -f serve/deploy/Dockerfile . && \
+	docker push silveryfu/libem-serve:0.0.21
+
+# libem apps
+.PHONY: cluster
+cluster:
+	python examples/apps/cluster.py
