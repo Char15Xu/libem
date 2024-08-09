@@ -153,3 +153,8 @@ duckdb:
 	python examples/apps/integration/duckdb_cluster.py
 mongodb:
 	python examples/apps/integration/mongodb_cluster.py
+
+
+.PHONY: bert
+bert:
+	python examples/model/bert.py
