@@ -24,7 +24,7 @@ def negative():
 
 def main():
     libem.calibrate({
-        "libem.match.parameter.model": "bert-base",
+        "libem.match.parameter.model": "roberta",
     })
     positive()
     negative()
