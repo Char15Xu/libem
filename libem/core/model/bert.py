@@ -4,6 +4,7 @@ import platform
 import libem
 
 from transformers import BertTokenizer, BertModel
+from transformers import RobertaTokenizer, RobertaForSequenceClassification
 import torch
 import re
 
@@ -27,20 +28,28 @@ def call(prompt: str | list | dict,
     else:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    
     if model == "bert-base":
         model_name = "bert-base-uncased"
-    elif model == "bert-tuned":
-        raise ValueError(f"{model} is not supported.")
-    else:
-        raise ValueError(f"Invalid model: {model}")
-
-    if _model is None or _tokenizer is None:
+        if _model is None or _tokenizer is None:
             start = time.time()
             _tokenizer = BertTokenizer.from_pretrained(model_name)
             _model = BertModel.from_pretrained(model_name).to(device)
             libem.debug(f"model loaded in {time.time() - start:.2f} seconds.")
+        else:
+            libem.debug("model loaded from cache")
+    elif model == "roberta":
+        model_name = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+        if _model is None or _tokenizer is None:
+            start = time.time()
+            _tokenizer = RobertaTokenizer.from_pretrained(model_name)
+            _model = RobertaForSequenceClassification.from_pretrained(model_name).to(device)
+            libem.debug(f"model loaded in {time.time() - start:.2f} seconds.")
+        else:
+            libem.debug("model loaded from cache")
     else:
-        libem.debug("model loaded from cache")
+        raise ValueError(f"Invalid model: {model}")
+
     model, tokenizer = _model, _tokenizer
     model.eval()
 
@@ -64,15 +73,11 @@ def call(prompt: str | list | dict,
     # Tokenize and encode entities
     encoding1 = tokenizer.encode_plus(
         entity1,
-        add_special_tokens=True,
-        truncation=True,
         return_tensors='pt'
     ).to(device)
 
     encoding2 = tokenizer.encode_plus(
         entity2,
-        add_special_tokens=True,
-        truncation=True,
         return_tensors='pt'
     ).to(device)
 
