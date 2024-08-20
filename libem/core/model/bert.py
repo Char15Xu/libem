@@ -3,8 +3,7 @@ import platform
 
 import libem
 
-from transformers import BertTokenizer, BertModel
-from transformers import RobertaTokenizer, RobertaForSequenceClassification
+from transformers import BertTokenizer, BertModel, RobertaTokenizer, RobertaForSequenceClassification, logging
 import torch
 import re
 
@@ -28,27 +27,26 @@ def call(prompt: str | list | dict,
     else:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    
     if model == "bert-base":
         model_name = "bert-base-uncased"
-        if _model is None or _tokenizer is None:
-            start = time.time()
-            _tokenizer = BertTokenizer.from_pretrained(model_name)
-            _model = BertModel.from_pretrained(model_name).to(device)
-            libem.debug(f"model loaded in {time.time() - start:.2f} seconds.")
-        else:
-            libem.debug("model loaded from cache")
     elif model == "roberta":
-        model_name = "cardiffnlp/twitter-roberta-base-sentiment-latest"
-        if _model is None or _tokenizer is None:
-            start = time.time()
-            _tokenizer = RobertaTokenizer.from_pretrained(model_name)
-            _model = RobertaForSequenceClassification.from_pretrained(model_name).to(device)
-            libem.debug(f"model loaded in {time.time() - start:.2f} seconds.")
-        else:
-            libem.debug("model loaded from cache")
+        model_name = "roberta-base"
     else:
         raise ValueError(f"Invalid model: {model}")
+
+    if _model is None or _tokenizer is None:
+        start = time.time()
+        if model == "bert-base":
+            _tokenizer = BertTokenizer.from_pretrained(model_name)
+            _model = BertModel.from_pretrained(model_name).to(device)
+        elif model == "roberta":
+            _tokenizer = RobertaTokenizer.from_pretrained(model_name)
+            _model = RobertaForSequenceClassification.from_pretrained(model_name).to(device)
+        else:
+            raise ValueError(f"Invalid model: {model}")
+        libem.debug(f"model loaded in {time.time() - start:.2f} seconds.")
+    else:
+        libem.debug("model loaded from cache")
 
     model, tokenizer = _model, _tokenizer
     model.eval()
@@ -73,11 +71,15 @@ def call(prompt: str | list | dict,
     # Tokenize and encode entities
     encoding1 = tokenizer.encode_plus(
         entity1,
+        add_special_tokens=True,
+        truncation=True,
         return_tensors='pt'
     ).to(device)
 
     encoding2 = tokenizer.encode_plus(
         entity2,
+        add_special_tokens=True,
+        truncation=True,
         return_tensors='pt'
     ).to(device)
 
@@ -87,7 +89,7 @@ def call(prompt: str | list | dict,
         embedding2 = model(**encoding2).last_hidden_state.mean(dim=1)
 
     similarity = torch.nn.functional.cosine_similarity(embedding1, embedding2).item()
-
+    print(similarity)
     # Determine entities match using semantic similarity
     response = "Yes" if similarity >= 0.50 else "No"
 

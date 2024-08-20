@@ -17,6 +17,8 @@ async def async_call(*args, **kwargs) -> dict:
     elif kwargs.get("model", "") == "llama3.1":
         return llama.call(*args, **kwargs)
     elif kwargs.get("model", "") == "bert-base":
+         return bert.call(*args, **kwargs)
+    elif kwargs.get("model", "") == "roberta":
         return bert.call(*args, **kwargs)
     else:
         return await openai.async_call(*args, **kwargs)
@@ -24,4 +26,5 @@ async def async_call(*args, **kwargs) -> dict:
 
 def reset():
     openai.reset()
+    bert.reset()
     llama.reset()
