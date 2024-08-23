@@ -12,16 +12,13 @@ def call(*args, **kwargs) -> dict:
 
 
 async def async_call(*args, **kwargs) -> dict:
-    if kwargs.get("model", "") == "llama3":
-        return llama.call(*args, **kwargs)
-    elif kwargs.get("model", "") == "llama3.1":
-        return llama.call(*args, **kwargs)
-    elif kwargs.get("model", "") == "bert-base":
-         return bert.call(*args, **kwargs)
-    elif kwargs.get("model", "") == "roberta":
-        return bert.call(*args, **kwargs)
-    else:
-        return await openai.async_call(*args, **kwargs)
+    match kwargs.get("model", ""):
+        case "llama3" | "llama3.1":
+            return llama.call(*args, **kwargs)
+        case "bert-base" | "roberta":
+            return bert.call(*args, **kwargs)
+        case _:
+            return openai.async_call(*args, **kwargs)
 
 
 def reset():

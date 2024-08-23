@@ -3,9 +3,8 @@ import platform
 
 import libem
 
-from transformers import BertTokenizer, BertModel, RobertaTokenizer, RobertaForSequenceClassification, logging
+from transformers import BertTokenizer, BertModel, RobertaTokenizer, RobertaModel
 import torch
-import re
 
 _model, _tokenizer = None, None
 
@@ -41,7 +40,7 @@ def call(prompt: str | list | dict,
             _model = BertModel.from_pretrained(model_name).to(device)
         elif model == "roberta":
             _tokenizer = RobertaTokenizer.from_pretrained(model_name)
-            _model = RobertaForSequenceClassification.from_pretrained(model_name).to(device)
+            _model = RobertaModel.from_pretrained(model_name).to(device)
         else:
             raise ValueError(f"Invalid model: {model}")
         libem.debug(f"model loaded in {time.time() - start:.2f} seconds.")
@@ -89,9 +88,9 @@ def call(prompt: str | list | dict,
         embedding2 = model(**encoding2).last_hidden_state.mean(dim=1)
 
     similarity = torch.nn.functional.cosine_similarity(embedding1, embedding2).item()
-    print(similarity)
+    
     # Determine entities match using semantic similarity
-    response = "Yes" if similarity >= 0.50 else "No"
+    response = "Yes" if similarity >= 0.9537956714630127 else "No"
 
     return {
         "output": response,
