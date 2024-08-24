@@ -137,8 +137,8 @@ def reset():
 
 
 if __name__ == '__main__':
-    datasets = [abt_buy, amazon_google, beer, dblp_acm, dblp_scholar, 
-                fodors_zagats, itunes_amazon, walmart_amazon]
+    datasets = [abt_buy, amazon_google, beer, 
+                dblp_acm, dblp_scholar, fodors_zagats, itunes_amazon, walmart_amazon]
 
     for dataset in datasets:
         bert_analyze(dataset)
