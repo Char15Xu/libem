@@ -5,7 +5,7 @@ from libem.cascade.prematch.function import run as prematch
 from libem.cascade.match.function import run as match
 
 
-def offline(args, dataset):
+def online(args, dataset):
 
     if dataset == abt_buy:
 
@@ -16,7 +16,7 @@ def offline(args, dataset):
 
         if unconfident_set:
             print(f"Running Match")
-            stats_match, results_match = match(train_set, unconfident_set, model_choice="gpt-4")
+            stats_match, results_match = match(train_set, unconfident_set, model_choice="gpt-4o")
             stats.append(stats_match)
             confident_result.append(results_match)
 
