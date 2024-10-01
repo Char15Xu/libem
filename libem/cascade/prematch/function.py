@@ -1,7 +1,7 @@
 import libem
-from libem.cascade.util import low_confidence_filter
-from benchmark.util import run_block, run_match
-
+from libem.cascade.util import low_confidence_filter, run as run_prematch
+from libem.optimize import profile
+from benchmark.util import run_block
 
 def run(train_set, test_set, args, model_choice="gpt-4o-mini"):
     results, stats = {}, {}
@@ -15,6 +15,7 @@ def run(train_set, test_set, args, model_choice="gpt-4o-mini"):
             "libem.match.parameter.confidence": True
         }, verbose=True)
         
-        stats['match'], results['match'] = run_match(train_set, test_set, args)
-
+        
+        stats, results = run_prematch(train_set, test_set, args)
+    
     return stats, results
