@@ -13,9 +13,11 @@ def get_model_info(model=None):
 def get_input_cost(model, num_tokens):
     if num_tokens is None or num_tokens <= 0:
         return 0
-
+    print("Getting input cost for model", model)
     global model_info
-    if model_info is None:
+    model_choice = None
+    if model_info is None or model_choice != model or model_choice is None:
+        model_choice = model
         model_info = get_model_info(model)
     return model_info['input_cost_per_token'] * num_tokens
 

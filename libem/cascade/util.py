@@ -45,6 +45,7 @@ def run(train_set, test_set, args):
     print(f"Cascading: Matching {num_pairs} "
           f"{'pair' if num_pairs == 1 else 'pairs'} "
           f"{f'in {num_batches} batches ' if args.batch_size > 1 else ''}"
+          f"using {args.model}"
           f"from the {args.name} dataset.")
 
     if args.num_shots > 0:
@@ -71,6 +72,7 @@ def run(train_set, test_set, args):
         })
 
         if args.sync and args.batch_size == 1:
+            print("Cascading: Running in synchronous mode with batch size 1.")
             # iterate and match each pair
             for i, data in enumerate(test_set):
                 if 0 < args.num_pairs < i + 1:
@@ -108,6 +110,7 @@ def run(train_set, test_set, args):
                               f"due to model call timeout..")
         else:
             # prepare datasets
+            print("Cascading: Running in asynchronous mode.")
             left, right, labels = [], [], []
             for i, data in enumerate(test_set):
 
@@ -175,9 +178,11 @@ def run(train_set, test_set, args):
     predictions = [1 if result['pred'] == 'yes' else 0 for result in results]
     latencies = [result['latency'] for result in results]
     confidences = [result['confidence'] for result in results if result['confidence'] is not None]
-
-    calibrated_confidences = temperature_scale(confidences, truth)
-    results = patch_calibrated_confidence(results, calibrated_confidences)
+    print(f"Model: {args.model}")
+    if args.model != "gpt-4o":
+        print(f"Calibrating confidences for model: {args.model}")
+        calibrated_confidences = temperature_scale(confidences, truth)
+        results = patch_calibrated_confidence(results, calibrated_confidences)
 
     # generate stats
     metrics = eval.report(
@@ -252,8 +257,8 @@ def profile(args, results, num_pairs):
     latencies = [result['latency'] for result in results]
     confidences = [result['confidence'] for result in results if result['confidence'] is not None]
 
-    calibrated_confidences = temperature_scale(confidences, truth)
-    results = patch_calibrated_confidence(results, calibrated_confidences)
+    # calibrated_confidences = temperature_scale(confidences, truth)
+    # results = patch_calibrated_confidence(results, calibrated_confidences)
 
     # generate stats
     metrics = eval.report(

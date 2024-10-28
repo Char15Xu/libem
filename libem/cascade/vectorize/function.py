@@ -7,8 +7,9 @@ def run(args, dataset, num_pairs=100):
 
     # construct kwargs dict
     kwargs = {
-        'version': 1,
+        'version': 0,
     }
+    
 
     args.num_pairs = num_pairs
 
