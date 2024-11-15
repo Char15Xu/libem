@@ -15,7 +15,7 @@ def run(train_set, test_set, args, model_choice="gpt-4o-mini"):
             "libem.match.parameter.confidence": True
         }, verbose=True)
         args.model = model_choice
-        print("args.model", args.model)
+        
         stats, results = run_prematch(train_set, test_set, args)
     
     return stats, results

@@ -1,21 +1,22 @@
 import time
-from libem.cascade.util import low_confidence_filter
+from libem.cascade.util import stage_filter
 from libem.cascade.vectorize.function import run as vectorize
 from libem.cascade.prematch.function import run as prematch
 from libem.cascade.match.function import run as match
 
 
-def online(args, dataset, prematch_model="gpt-4o-mini", match_model="gpt-4o", num_pairs=2, threshold=0.2):
+def online(args, dataset, prematch_model="gpt-4o-mini", match_model="gpt-4o", num_pairs=None, threshold=0.2):
     args.sync = True
-
+    args.schema = False
+    args.name = dataset.__name__.split('.')[-1]
     if dataset:
         train_set, test_set = vectorize(args, dataset, num_pairs)
-    
+        num_pairs_test = len(list(test_set))
+        args.num_pairs = num_pairs_test
         cascade_stats, cascade_result = {}, []
         start_time = time.time()
         prematch_stats, prematch_results = prematch(train_set, test_set, args, model_choice=prematch_model)
-        
-        unconfident_pairs, confident_pairs = low_confidence_filter(prematch_results, threshold)
+        unconfident_pairs, confident_pairs = stage_filter(prematch_results, threshold)
         cascade_result += confident_pairs
 
         if unconfident_pairs:
@@ -30,11 +31,12 @@ def online(args, dataset, prematch_model="gpt-4o-mini", match_model="gpt-4o", nu
 
     results_data = {
             "args": args,
+            "dataset": args.name,
             "train_set": train_set,
             "test_set": test_set,
             "prematch_model": prematch_model,
             "match_model": match_model,
-            "num_pairs": num_pairs,
+            "num_pairs": num_pairs_test,
             "threshold": threshold,
             "prematch_stats": prematch_stats,
             "prematch_results": prematch_results,
@@ -43,7 +45,8 @@ def online(args, dataset, prematch_model="gpt-4o-mini", match_model="gpt-4o", nu
             "cascade_stats": cascade_stats,
             "cascade_result": cascade_result,
             "start_time": start_time,
-            "end_time": end_time
+            "end_time": end_time,
+            "confident_pairs": confident_pairs,
         }
         
     return results_data

@@ -11,14 +11,14 @@ import libem
 from libem.core.struct import Shots, Shot
 from libem.optimize.interface import get_openai_cost
 
-def low_confidence_filter(results, threshold=0.5):
+def stage_filter(results, threshold=0.5):
     low_confidence_pairs = []
     high_confidence_results = []
 
     for result in results:
-
+        pred = result["pred"]
         confidence = result['confidence']
-        if confidence is not None and confidence < threshold:
+        if confidence is not None and confidence < threshold and "no" not in pred:
             low_confidence_pairs.append({
                 'left': result['left'],
                 'right': result['right'],
@@ -80,7 +80,7 @@ def run(train_set, test_set, args):
 
                 left, right = data['left'], data['right']
                 label = data['label']
-
+                
                 if not args.quiet:
                     print(f"Pair #{i + 1}\n")
                     print(f"Entity 1: {left}\n")
