@@ -14,12 +14,11 @@ numpy
 pandas
 tabulate
 bs4
-flask
-uvicorn
-requests
-fastapi
 tqdm
 recordlinkage
 duckdb
 pymongo
 anthropic
+aiolimiter
+seaborn
+requests

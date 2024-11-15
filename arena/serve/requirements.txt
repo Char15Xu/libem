@@ -1,0 +1,8 @@
+uvicorn
+requests
+fastapi
+itsdangerous
+python-dotenv
+fastapi-login
+authlib
+mysql-connector-python

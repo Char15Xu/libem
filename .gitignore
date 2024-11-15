@@ -1,9 +1,13 @@
 _logs/
 _output/
 
-arena/node_modules
-arena/results
-arena/secrets
+# libem arena
+arena/app/node_modules
+arena/kubectl.exe
+!arena/arena.env
+
+# kubernetes secret env vars
+env-vars.yaml
 
 libem/tune/catalog.db
 

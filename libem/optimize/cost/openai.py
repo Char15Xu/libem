@@ -6,7 +6,7 @@ def get_model_info(model=None):
     if model is None:
         return cache.load_openai()
     else:
-        return cache.load_openai().get(model, None)
+        return cache.load_openai().get(model, null_model_info)
 
 
 def get_input_cost(model, num_tokens):

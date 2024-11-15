@@ -18,37 +18,87 @@ Libem Arena supports benchmarking both users (preferably through the frontend) a
 
 The API is available to try out at https://arena.libem.org/api/.
 
+### Usage
+
+To benchmark Libem using Libem Arena:
+
+First login at https://arena.libem.org
+and copy the access token in the profile dropdown
+
+```
+import requests
+import libem
+
+access_token = '' # Paste access token here
+
+# Call /info to get the available benchmarks
+response = requests.get('https://arena.libem.org/api/info').json()
+benchmarks = response['benchmarks']
+
+# Get the first benchmark name
+benchmark = list(response1['benchmarks'].keys())[0]
+
+# Then call /match with the benchmark name
+response = requests.get(
+                f'https://arena.libem.org/api/match?benchmark={benchmark}',
+                headers={
+                    'Authorization': f'Bearer {access_token}'
+                }).json()
+pairs = response['pairs']
+
+# Separate the pairs into 'left' and 'right',
+# then use Libem to get the answers
+left, right = [], []
+for pair in pairs:
+    left.append(pair['left'])
+    right.append(pair['right'])
+answers = libem.match(left, right)
+
+# Call /submit with the list of answers to get the score and time
+response = requests.post(
+                f'arena.libem.org/api/submit', 
+                headers={
+                    'Authorization': f'Bearer {access_token}'
+                },
+                json={'answers': answers, 
+                      'display_name': 'Demo'}).json()
+score, time = response['score'], response['time']
+```
+
 ## Local setup
 
-To host your own version: 
+#### Kubernetes
 
-#### Backend
-
-The backend is self-contanined in `./serve.py`, and can be hosted using uvicorn by running
+To host Arena through kubernetes:
 
 ```
-libem/arena> python serve.py
+libem/arena> make up
 ```
 
-#### Frontend
+The frontend will be hosted at http://localhost and the API will be at http://localhost/api.
 
-The frontend can be compiled into static HTML in `./dist` by running
+To stop hosting:
 
 ```
-libem/arena> npm i # installs all dependencies
-libem/arena> npm run build
+libem/arena> make down
+```
+
+To remove PVC storage:
+
+```
+libem/arena> make delete
 ```
 
 ## Screenshots
 
 ### Home
-![Libem Arena Homescreen](./demo/arena_home.png)
+![Libem Arena Homescreen](./docs/arena_home.png)
 
 ### Match
-![Libem Arena Homescreen](./demo/arena_select.png)
+![Libem Arena Homescreen](./docs/arena_select.png)
 
 ## Results
-![Libem Arena Homescreen](./demo/arena_result.png)
+![Libem Arena Homescreen](./docs/arena_result.png)
 
 ## Leaderboard
-![Libem Arena Homescreen](./demo/arena_leaderboard.png)
+![Libem Arena Homescreen](./docs/arena_leaderboard.png)
