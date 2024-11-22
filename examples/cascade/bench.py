@@ -6,7 +6,7 @@ from libem.cascade.function import online
 from util import sensitivity_analysis, generate_stats, confidence_cost_plot, confidence_f1_plot, plot_result, save_results, compare_results
 
 def bench():
-    results_data = online(args(), match_model="gpt-o1", dataset=itunes_amazon, num_pairs=None, threshold=0.9)
+    results_data = online(args(), match_model="o1-mini", dataset=beer, num_pairs=None, threshold=0.9)
     compare_results(results_data)
     cascade_stats, prematch_single, match_single = generate_stats(results_data)
     save_results(cascade_stats, prematch_single, match_single)
