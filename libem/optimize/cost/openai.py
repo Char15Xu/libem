@@ -1,6 +1,10 @@
 from libem.optimize.cost import cache
 
 model_info, model_choice = None, None
+null_model_info = {
+    'input_cost_per_token': 0,
+    'output_cost_per_token': 0
+}
 
 def get_model_info(model=None):
     if model is None:

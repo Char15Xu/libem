@@ -1,10 +1,13 @@
 import libem
 import openai
 import time
+from libem.core.model.openai import reset
 from libem.cascade.util import run as run_match
 
 
 def run(train_set, test_set, args, model_choice="gpt-4o"):
+    reset()
+    
     results, stats = {}, {}
 
     libem.calibrate({
@@ -19,6 +22,7 @@ def run(train_set, test_set, args, model_choice="gpt-4o"):
     print("run matching using model", args.model)
     
     return stats, results
+
     # max_retries = 3
     # retry_delay = 10
     # for attempt in range(max_retries):

@@ -18,7 +18,7 @@ def stage_filter(results, threshold=0.5):
     for result in results:
         pred = result["pred"]
         confidence = result['confidence']
-        if confidence is not None and confidence < threshold and "no" not in pred:
+        if confidence is not None and confidence < threshold:
             low_confidence_pairs.append({
                 'left': result['left'],
                 'right': result['right'],

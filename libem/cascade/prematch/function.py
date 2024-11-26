@@ -1,9 +1,11 @@
 import libem
-from libem.cascade.util import run as run_prematch
-from libem.optimize import profile
 from benchmark.util import run_block
+from libem.core.model.openai import reset
+from libem.cascade.util import run as run_prematch
 
 def run(train_set, test_set, args, model_choice="gpt-4o-mini"):
+    reset()
+
     results, stats = {}, {}
 
     if model_choice == "block":

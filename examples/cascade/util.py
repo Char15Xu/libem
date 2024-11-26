@@ -4,6 +4,8 @@ import libem
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
+from collections import defaultdict
+from libem.core.eval import accuracy
 from libem.cascade.util import profile
 from libem.cascade.function import online
 from libem.cascade.match.function import run as match
@@ -17,6 +19,7 @@ def benchmark(result):
     plot_result(result, cascade_stats)
 
     return cascade_stats, result["cascade_result"]
+
 
 def generate_stats(result):
 
@@ -80,6 +83,7 @@ def generate_stats(result):
 
     return cascade_stats, prematch_single, match_single
 
+
 def save_results(cascade, prematch_single, match_single):
     # Save the output
     dataset = cascade["dataset"]
@@ -112,74 +116,29 @@ def save_results(cascade, prematch_single, match_single):
     with open(match_file_path, "w") as json_file:
         json.dump(match_single, json_file, indent=4)
 
+
 def plot_result(cascade, prematch_single, match_single):
     dataset = cascade["dataset"]
     output_path = os.path.join("examples", "cascade", "output", dataset)
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    
 
     prematch_model = prematch_single["model"]
     match_model = match_single["model"]
+    result_prematch = prematch_single["results"]
+    result_match = match_single["results"]
     approaches = [prematch_model, match_model, "Cascade"]
 
-    metrics_data = {
-        'f1': {},
-        'cost': {},
-        'latency': {}
-    }
-
-    # Extract data for metrics
-    latency_per_pair = []
-    for model_name, data in zip([prematch_model, match_model, "Cascade"], [prematch_single, match_single, cascade]):
-        latency = 0
-        num_pair = data['stats']["num_pairs"]
-        for pair in data['results']:
-            latency += pair['latency']
-        latency_per_pair.append(latency/num_pair) 
-        metrics_data['latency'][model_name] = latency_per_pair
-
-    for model_name, data in zip([prematch_model, match_model, "Cascade"], [prematch_single, match_single, cascade]):
-        metrics_data['f1'][model_name] = data['stats']['f1']
-        metrics_data['cost'][model_name] = data['stats']['tokens']['cost']
-
-    def normalize_metrics(metrics, baseline_value):
-        normalized_values = []
-        for value in metrics:
-            if baseline_value != 0:
-                normalized_value = ((value - baseline_value)/ baseline_value) * 100
-                normalized_values.append(normalized_value)
-            else:
-                normalized_values.append(0)  # Handle case where baseline is 0
-        return normalized_values
- 
-    metric_labels = {
-        'f1': 'F1 Score',
-        'cost': 'Cost',
-        'latency': 'Latency per Pair'
-    }
-
-    metric_titles = {
-        'f1': 'F1 Score',
-        'cost': 'Cost',
-        'latency': 'Latency per Pair'
-    }
-
-    bar_width = 0.2
-
     # Plot for F1 Graph
-    f1 = [metrics_data['f1'][approach] for approach in approaches]
-
+    f1 = [data['stats']['f1'] for data in [prematch_single, match_single, cascade]]
     min_f1, max_f1 = min(f1), max(f1)
     y_margin = 2
-
-    # plt.figure(figsize=(10, 6))
-    plt.bar(approaches, f1, color='skyblue', label=metric_labels['f1'])
+    plt.bar(approaches, f1, color='skyblue', label='F1 Score')
     for i, value in enumerate(f1):
         plt.text(i, value + 0.01, f'{value:.2f}', ha='center', va='bottom')
     plt.ylim(min_f1 - y_margin, max_f1 + y_margin)
-    plt.ylabel(metric_labels['f1'])
+    plt.ylabel('F1 Score')
     plt.xlabel('Models')
-    plt.title(metric_titles['f1'], pad=20)
+    plt.title('F1 Score', pad=20)
     plt.gca().spines['top'].set_visible(False)
     plt.gca().spines['right'].set_visible(False)
     plt.legend()
@@ -190,13 +149,12 @@ def plot_result(cascade, prematch_single, match_single):
 
     # Plot for Cost
     cost = [data['stats']['tokens']['cost'] for data in [prematch_single, match_single, cascade]]
-
-    plt.bar(approaches, cost, color='green', label=metric_labels['cost'])
+    plt.bar(approaches, cost, color='green', label='Cost')
     for i, value in enumerate(cost):
         plt.text(i, value + 0.0001, f'{value:.5f}', ha='center', va='bottom')
-    plt.ylabel(metric_labels['cost'])
+    plt.ylabel('Cost')
     plt.xlabel('Models')
-    plt.title(metric_titles['cost'])
+    plt.title('Cost')
     plt.gca().spines['top'].set_visible(False)
     plt.gca().spines['right'].set_visible(False)
     plt.legend()
@@ -205,21 +163,68 @@ def plot_result(cascade, prematch_single, match_single):
     plt.savefig(os.path.join(output_path, file_name))
     plt.show()
 
-    # # Plot for Latency Per Pair
-    # plt.bar(approaches, latency_per_pair, color='orange', label=metric_labels['latency'])
-    # bar_width = 0.4
-    # for i, value in enumerate(latency_per_pair):
-    #     plt.text(i, value + 0.0001, f'{value:.4f}', ha='center', va='bottom')
-    # plt.ylabel(metric_labels['latency'])
-    # plt.xlabel('Models')
-    # plt.title(metric_titles['latency'])
-    # plt.gca().spines['top'].set_visible(False)
-    # plt.gca().spines['right'].set_visible(False)
-    # plt.legend()
-    # plt.tight_layout()
-    # file_name = f"{'latency'}-comparison-{timestamp}.png"
-    # plt.savefig(os.path.join(output_path, file_name))
-    # plt.show()
+    # Confidence Calibration
+    prematch_acc = accuracy_groupby_confidence(result_prematch)
+    match_acc = accuracy_groupby_confidence(result_match)
+    output_path = os.path.join("examples", "cascade", "output", dataset)
+    confidence_calibration_graph(prematch_acc, match_acc, dataset, output_path)
+
+
+def accuracy_groupby_confidence(data):
+    confidence_dict = defaultdict(list)
+    for item in data:
+        confidence = item['confidence']
+        confidence_dict[confidence].append(item)
+    
+    accuracy_dict = {}
+
+    for confidence, items in confidence_dict.items():
+        truth = [item['label'] == 1 for item in items]
+        predictions = [item['pred'] == "yes" for item in items]
+        acc = accuracy(truth, predictions)
+        if len(items) > 5:
+            accuracy_dict[confidence] = acc
+
+    keys = accuracy_dict.keys()
+    keys = [key for key in keys if key is not None]
+    keys_sorted = sorted(keys)
+    sorted_dict = {key: accuracy_dict[key] for key in keys_sorted}
+
+    return sorted_dict
+
+
+def confidence_calibration_graph(prematch_acc, match_acc, dataset, output_path):
+    x_gpt4o_mini = list(prematch_acc.keys())
+    y_gpt4o_mini = list(prematch_acc.values())
+    
+    x_gpt4o = list(match_acc.keys())
+    y_gpt4o = list(match_acc.values())
+    
+    perfect_calibration = np.linspace(0, 1, 100)
+    
+    # Plot
+    plt.figure(figsize=(8, 6))
+    plt.plot(x_gpt4o_mini, y_gpt4o_mini, '-o', label="GPT-4o-mini", color='darkblue', linewidth=1.5, alpha=0.8)
+    plt.plot(x_gpt4o, y_gpt4o, '-o', label="GPT-4o", color='red', linewidth=1.5, alpha=0.8)
+    plt.plot(perfect_calibration, perfect_calibration, '--', label="Perfect Calibration", color='black', alpha=0.5)
+    
+    plt.xlabel("Confidence", fontsize=11)
+    plt.ylabel("Accuracy", fontsize=11)
+    plt.title("Accuracy vs. Confidence", fontsize=12)
+    plt.legend(loc='lower right', fontsize=10, frameon=False)
+    
+    plt.grid(color='gray', linestyle=':', linewidth=0.5, alpha=0.6)
+    plt.gca().spines['top'].set_color('none')
+    plt.gca().spines['right'].set_color('none')
+    plt.gca().spines['left'].set_color('white')
+    plt.gca().spines['bottom'].set_color('white')
+    
+    plt.tight_layout()
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    file_name = f"confidence-calibration-{dataset}-{timestamp}.png"
+    plt.savefig(os.path.join(output_path, file_name))
+    plt.show()
+
 
 def compare_results(result_data):
     prematch_stats = result_data["prematch_stats"]
@@ -335,11 +340,13 @@ def compare_results(result_data):
         "total_pairs": total_pairs,
         "prematch_stats": prematch_stats,
         "match_stats": match_stats,
-        "prematch_only": {
-            "num": num_prematch_only, 
+        "prematch_stage": {
+            "num_total": num_prematch_only, 
             "num_correct": num_prematch_only_correct, 
             },
-        "prematch_and_match":{
+        "match_stage":{
+            "num_total": total_pairs - num_prematch_only, 
+            "num_correct": num_correct_flip + num_correct_no_flip,
             "num_correct_flip": num_correct_flip, 
             "num_incorrect_flip": num_incorrect_flip, 
             "num_correct_no_flip": num_correct_no_flip, 
@@ -358,7 +365,7 @@ def compare_results(result_data):
     }
     
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    output_filename = f"results-analysis-{dataset}-{timestamp}.json"
+    output_filename = f"analysis-{dataset}-{timestamp}.json"
     output_path = os.path.join("examples", "cascade", "output", dataset)
     output_filepath = os.path.join(output_path, output_filename)
     os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
@@ -366,6 +373,7 @@ def compare_results(result_data):
         json.dump(result_analysis, json_file, indent=4)
     
     print(f"Comparison results saved to {output_filepath}")
+
 
 def sensitivity_analysis(args, dataset, thresholds, prematch_model="gpt-4o-mini", match_model="gpt-4o", num_pairs=2):
     f1_scores = []
@@ -389,6 +397,7 @@ def sensitivity_analysis(args, dataset, thresholds, prematch_model="gpt-4o-mini"
 
     return f1_scores, costs
 
+
 def confidence_cost_plot(thresholds, costs):
     plt.figure(figsize=(8, 5))
     plt.plot(thresholds, costs, marker='s', linestyle='-', color='red', label='Cost')
@@ -405,6 +414,7 @@ def confidence_cost_plot(thresholds, costs):
     file_name = f"sensitivity-confidence-over-cost-{timestamp}.png"
     file_path = os.path.join(output_path, file_name)
     plt.savefig(file_path)
+
 
 def confidence_f1_plot(thresholds, f1):
     plt.figure(figsize=(8, 5))

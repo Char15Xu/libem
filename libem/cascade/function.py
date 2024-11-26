@@ -6,9 +6,10 @@ from libem.cascade.match.function import run as match
 
 
 def online(args, dataset, prematch_model="gpt-4o-mini", match_model="gpt-4o", num_pairs=None, threshold=0.2):
-    args.sync = True
+
     args.schema = False
     args.name = dataset.__name__.split('.')[-1]
+
     if dataset:
         train_set, test_set = vectorize(args, dataset, num_pairs)
         num_pairs_test = len(list(test_set))
@@ -20,6 +21,7 @@ def online(args, dataset, prematch_model="gpt-4o-mini", match_model="gpt-4o", nu
         cascade_result += confident_pairs
 
         if unconfident_pairs:
+            
             match_stats, match_results = match(train_set, unconfident_pairs, args, model_choice=match_model)
             end_time = time.time()
             cascade_result += match_results
