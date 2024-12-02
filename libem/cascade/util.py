@@ -1,15 +1,14 @@
 import time
 import math
 import numpy as np
-from datetime import datetime
+import libem
 from libem.core import eval
 from libem.optimize import cost as cost_util
 from libem.tune.learn.confidence.calibrate import temperature_scale
 from libem.match import prompt as match_prompt
 from libem.match import digest as match_digest
-import libem
+
 from libem.core.struct import Shots, Shot
-from libem.optimize.interface import get_openai_cost
 
 def stage_filter(results, threshold=0.5):
     low_confidence_pairs = []
@@ -28,14 +27,6 @@ def stage_filter(results, threshold=0.5):
             high_confidence_results.append(result)
             
     return low_confidence_pairs, high_confidence_results
-
-
-def average_confidence_filter(result, threshold=0.5):
-    confidence = 0
-    num_matches = 0
-    confidence = result['confidence']
-    if confidence > threshold:
-        return True
 
 
 def run(train_set, test_set, args):
