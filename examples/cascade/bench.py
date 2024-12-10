@@ -6,11 +6,11 @@ from libem.cascade.function import online
 from util import sensitivity_analysis, generate_stats, confidence_cost_plot, confidence_f1_plot, plot_result, save_results, compare_results
 
 def bench():
-    results_data = online(args(), dataset=abt_buy, num_pairs=None, threshold=0.9)
+    results_data = online(args(), dataset=abt_buy, num_pairs=100, threshold=0.8)
     compare_results(results_data)
     cascade_stats, prematch_single, match_single = generate_stats(results_data)
     save_results(cascade_stats, prematch_single, match_single)
-    plot_result(cascade_stats, prematch_single, match_single)
+    plot_result(cascade_stats, prematch_single, match_single, F1=False)
 
 
 def sensitivity_analysis():

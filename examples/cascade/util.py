@@ -117,7 +117,7 @@ def save_results(cascade, prematch_single, match_single):
         json.dump(match_single, json_file, indent=4)
 
 
-def plot_result(cascade, prematch_single, match_single):
+def plot_result(cascade, prematch_single, match_single, F1=True):
     dataset = cascade["dataset"]
     output_path = os.path.join("examples", "cascade", "output", dataset)
     timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -129,21 +129,26 @@ def plot_result(cascade, prematch_single, match_single):
     approaches = [prematch_model, match_model, "Cascade"]
 
     # Plot for F1 Graph
-    f1 = [data['stats']['f1'] for data in [prematch_single, match_single, cascade]]
-    min_f1, max_f1 = min(f1), max(f1)
+    if F1:
+        score = [data['stats']['f1'] for data in [prematch_single, match_single, cascade]]
+        min_score, max_score = min(score), max(score)
+    else:
+        score = [data['stats']['accuracy'] for data in [prematch_single, match_single, cascade]]
+        min_score, max_score = min(score), max(score)
+
     y_margin = 2
-    plt.bar(approaches, f1, color='skyblue', label='F1 Score')
-    for i, value in enumerate(f1):
+    plt.bar(approaches, score, color='skyblue', label='F1 Score')
+    for i, value in enumerate(score):
         plt.text(i, value + 0.01, f'{value:.2f}', ha='center', va='bottom')
-    plt.ylim(min_f1 - y_margin, max_f1 + y_margin)
-    plt.ylabel('F1 Score')
+    plt.ylim(min_score - y_margin, max_score + y_margin)
+    plt.ylabel('Accuracy Score')
     plt.xlabel('Models')
-    plt.title('F1 Score', pad=20)
+    plt.title('Accuracy Score', pad=20)
     plt.gca().spines['top'].set_visible(False)
     plt.gca().spines['right'].set_visible(False)
     plt.legend()
     plt.tight_layout()
-    file_name = f"f1-comparison-{dataset}-{timestamp}.png"
+    file_name = f"accuracy-comparison-{dataset}-{timestamp}.png"
     plt.savefig(os.path.join(output_path, file_name))
     plt.show()
 
